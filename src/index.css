@@ -714,3 +714,130 @@ body {
    MISC
 ══════════════════════════════════════════════ */
 .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+/* ══════════════════════════════════════════════
+   RESPONSIVE — MOBILE
+══════════════════════════════════════════════ */
+
+/* Mobile back button (hidden on desktop) */
+.mobile-back-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+
+  /* Login card full width on small screens */
+  .login-card {
+    max-width: 100%;
+    margin: 16px;
+    padding: 36px 24px 32px;
+    border-radius: var(--r-lg);
+  }
+
+  .login-title { font-size: 24px; }
+  .login-subtitle { font-size: 13px; }
+
+  /* App layout: stack sidebar + chat vertically as panels */
+  .app-layout {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Sidebar takes full width, slides in/out */
+  .sidebar {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-width: unset;
+    z-index: 10;
+    transform: translateX(0);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* When a chat is open, slide sidebar off screen to the left */
+  .sidebar.hidden-mobile {
+    transform: translateX(-100%);
+    pointer-events: none;
+  }
+
+  /* Chat area takes full width */
+  .chat-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  /* When a chat is open, slide chat area into view */
+  .chat-area.visible-mobile {
+    transform: translateX(0);
+  }
+
+  /* Show back button on mobile */
+  .mobile-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    width: 34px;
+    height: 34px;
+    border-radius: var(--r-full);
+    cursor: pointer;
+    transition: var(--t);
+    flex-shrink: 0;
+    margin-right: 4px;
+  }
+  .mobile-back-btn:hover { background: rgba(255,255,255,0.07); color: var(--text-primary); }
+
+  /* Chat header adjustments */
+  .chat-header { padding: 10px 12px; }
+  .chat-user-name { font-size: 14px; }
+
+  /* Messages */
+  .messages-container { padding: 12px 12px; }
+  .message { max-width: 78%; font-size: 13px; }
+
+  /* Input area */
+  .chat-input-area { padding: 10px 12px; }
+
+  /* Contact info panel: full screen overlay on mobile */
+  .contact-info-panel {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    z-index: 50;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    padding-top: 20px;
+  }
+
+  /* Settings modal full width */
+  .settings-modal {
+    max-width: 100%;
+    margin: 12px;
+    border-radius: var(--r-lg);
+  }
+
+  /* Toast position */
+  .toast {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+    text-align: center;
+  }
+
+  /* Attachment sizes */
+  .attachment-image { max-width: 180px; }
+  .attachment-audio { width: 190px; }
+}
+
+@media (max-width: 400px) {
+  .login-card { padding: 28px 16px 24px; margin: 10px; }
+  .login-app-icon { width: 62px; height: 62px; }
+  .login-title { font-size: 22px; }
+  .message { max-width: 85%; }
+}

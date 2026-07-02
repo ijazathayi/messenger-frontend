@@ -3,7 +3,7 @@ import {
   LogOut, Search, Send, User, Settings as SettingsIcon,
   Edit2, Trash2, X, Info, Paperclip, FileText, Download,
   MoreVertical, Camera, Check, CheckCheck, MessageSquare, Shield,
-  Phone, Video
+  Phone, Video, ArrowLeft
 } from 'lucide-react';
 import AdminPanel from './AdminPanel';
 import IncomingCallDialog from './IncomingCallDialog';
@@ -410,7 +410,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
     <div className="app-layout glass-panel">
 
       {/* ══ SIDEBAR ══ */}
-      <aside className="sidebar">
+      <aside className={`sidebar${selectedUser && !showSettings ? ' hidden-mobile' : ''}`}>
 
         {/* Header */}
         <div className="sidebar-header">
@@ -569,7 +569,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
       </aside>
 
       {/* ══ MAIN CHAT AREA ══ */}
-      <div className="chat-area">
+      <div className={`chat-area${selectedUser && !showSettings ? ' visible-mobile' : ''}`}>
 
         {/* Settings modal */}
         {showSettings && (
@@ -701,7 +701,11 @@ export default function ChatLayout({ currentUser, onLogout }) {
           <>
             {/* ── Chat header ── */}
             <div className="chat-header">
-              <div className="chat-header-info" onClick={() => setShowInfo(v => !v)}>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <button className="mobile-back-btn" onClick={() => setSelectedUser(null)} title="Back">
+                  <ArrowLeft size={20} />
+                </button>
+                <div className="chat-header-info" onClick={() => setShowInfo(v => !v)}>
                 <div className="avatar-wrap">
                   <Avatar src={selectedUser.avatar} name={selectedUser.name} size={36} />
                   {isOnline(selectedUser.id) && <div className="online-dot" />}
@@ -713,6 +717,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
                   </div>
                 </div>
               </div>
+              </div>{/* end mobile back wrapper */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button className="icon-btn" title="Voice Call" onClick={() => startCall('audio')}>
                   <Phone size={17} color="var(--green)" />
