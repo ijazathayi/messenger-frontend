@@ -19,6 +19,13 @@ const authFetch = (url, options = {}) => fetch(url, {
     ...(options.headers || {}),
     'Authorization': `Bearer ${getToken()}`,
   },
+}).then(res => {
+  if (res.status === 401) {
+    // Token expired or missing — clear and reload to show login
+    localStorage.removeItem('messenger_token');
+    window.location.reload();
+  }
+  return res;
 });
 
 /* ─────────────────────────────────────────────
