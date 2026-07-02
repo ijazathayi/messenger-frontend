@@ -3,13 +3,14 @@ import Login from './components/Login';
 import ChatLayout from './components/ChatLayout';
 import './index.css';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user already has a session (e.g. after page refresh)
-    fetch('/auth/status', { credentials: 'include' })
+    fetch(`${BACKEND}/auth/status`, { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.authenticated) setCurrentUser(data.user);
@@ -18,13 +19,12 @@ function App() {
       .catch(() => setLoading(false));
   }, []);
 
-  // Called by Login component after successful Google token verification
   const handleLogin = (userData) => {
     setCurrentUser(userData);
   };
 
   const handleLogout = () => {
-    fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+    fetch(`${BACKEND}/auth/logout`, { method: 'POST', credentials: 'include' })
       .then(res => res.json())
       .then(data => { if (data.success) setCurrentUser(null); })
       .catch(console.error);

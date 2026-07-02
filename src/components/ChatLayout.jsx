@@ -10,6 +10,8 @@ import IncomingCallDialog from './IncomingCallDialog';
 import CallModal from './CallModal';
 import { io } from 'socket.io-client';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+
 /* ─────────────────────────────────────────────
    Avatar helper
 ───────────────────────────────────────────── */
@@ -182,7 +184,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
     if (!confirm) return;
 
     try {
-      const res = await fetch(`/api/messages/${selectedUser.id}`, {
+      const res = await fetch(`${BACKEND}/api/messages/${selectedUser.id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -242,7 +244,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
 
   /* ── Fetch users ── */
   useEffect(() => {
-    fetch('/api/users', { credentials: 'include' })
+    fetch(`${BACKEND}/api/users`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) { setUsers(d); setFilteredUsers(d); } })
       .catch(console.error);
@@ -280,7 +282,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
         setFindLoading(true);
         setFindError('');
         setFindResult(null);
-        fetch(`/api/users/find?code=${q}`, { credentials: 'include' })
+        fetch(`${BACKEND}/api/users/find?code=${q}`, { credentials: 'include' })
           .then(r => r.json())
           .then(data => {
             if (data.error) { setFindError(data.error); setFindResult(null); }
@@ -300,7 +302,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
   useEffect(() => {
     if (!selectedUser) return;
     setShowInfo(false); setEditingMsg(null); setDraft(''); setOpenMenuId(null);
-    fetch(`/api/messages/${selectedUser.id}`, { credentials: 'include' })
+    fetch(`${BACKEND}/api/messages/${selectedUser.id}`, { credentials: 'include' })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d)) setMessages(d); })
       .catch(console.error);
@@ -343,7 +345,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
     const fd = new FormData();
     fd.append('media', file);
     try {
-      const res  = await fetch('/api/messages/upload', { method: 'POST', body: fd, credentials: 'include' });
+      const res  = await fetch(`${BACKEND}/api/messages/upload`, { method: 'POST', body: fd, credentials: 'include' });
       const data = await res.json();
       if (data.success) {
         socket.emit('send_message', {
@@ -364,7 +366,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
     fd.append('about', pAbout);
     if (pAvatarFile) fd.append('avatar', pAvatarFile);
     try {
-      const res  = await fetch('/api/users/profile', { method: 'PUT', body: fd, credentials: 'include' });
+      const res  = await fetch(`${BACKEND}/api/users/profile`, { method: 'PUT', body: fd, credentials: 'include' });
       const data = await res.json();
       if (data.success) { showToast('Profile updated!'); setShowSettings(false); setPAvatarFile(null); }
       else               showToast(data.error || 'Update failed', 'error');

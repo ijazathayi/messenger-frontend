@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, X, Edit, Trash2, Check, RefreshCw, Key, Eye, EyeOff, MessageSquare, Video, Play } from 'lucide-react';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+
 export default function AdminPanel({ onClose, showToast }) {
   const [adminKey, setAdminKey] = useState(() => localStorage.getItem('messenger_admin_key') || '');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,11 +32,11 @@ export default function AdminPanel({ onClose, showToast }) {
 
   const fetchAdminData = async (keyToUse = adminKey) => {
     try {
-      const statsRes = await fetch(`/admin/stats?key=${keyToUse}`, { credentials: 'include' });
+      const statsRes = await fetch(`${BACKEND}/admin/stats?key=${keyToUse}`, { credentials: 'include' });
       if (!statsRes.ok) throw new Error();
       const statsData = await statsRes.json();
       
-      const usersRes = await fetch(`/admin/users?key=${keyToUse}`, { credentials: 'include' });
+      const usersRes = await fetch(`${BACKEND}/admin/users?key=${keyToUse}`, { credentials: 'include' });
       const usersData = await usersRes.json();
       
       setStats(statsData);
@@ -71,7 +73,7 @@ export default function AdminPanel({ onClose, showToast }) {
   const handleUpdate = async (userId) => {
     setSaving(true);
     try {
-      const res = await fetch(`/admin/users/${userId}?key=${adminKey}`, {
+      const res = await fetch(`${BACKEND}/admin/users/${userId}?key=${adminKey}`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +102,7 @@ export default function AdminPanel({ onClose, showToast }) {
   const handleDelete = async (userId, userName) => {
     if (!window.confirm(`Are you sure you want to delete user "${userName}"? This will permanently remove all their messages.`)) return;
     try {
-      const res = await fetch(`/admin/users/${userId}?key=${adminKey}`, {
+      const res = await fetch(`${BACKEND}/admin/users/${userId}?key=${adminKey}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -117,7 +119,7 @@ export default function AdminPanel({ onClose, showToast }) {
 
   const handleViewChats = async (user) => {
     try {
-      const res = await fetch(`/admin/users/${user.id}/chats?key=${adminKey}`, { credentials: 'include' });
+      const res = await fetch(`${BACKEND}/admin/users/${user.id}/chats?key=${adminKey}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setChats(data);
@@ -133,7 +135,7 @@ export default function AdminPanel({ onClose, showToast }) {
   const fetchRecordings = async () => {
     setLoadingRec(true);
     try {
-      const res = await fetch(`/admin/recordings?key=${adminKey}`, { credentials: 'include' });
+      const res = await fetch(`${BACKEND}/admin/recordings?key=${adminKey}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setRecordings(data);

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { Lock, Zap, Shield, MessageSquare } from 'lucide-react';
 
 const GOOGLE_CLIENT_ID = '61953097945-qovq5k9vqmqgumkem6qm58i3ku8q6jdv.apps.googleusercontent.com';
+const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
 
 const features = [
   { icon: <Shield size={12} color="#3ecf70" />, label: 'End-to-end secure' },
@@ -18,7 +19,7 @@ const Login = ({ onLogin }) => {
     setLoading(true);
     setError('');
     try {
-      const res  = await fetch('/auth/google/token', {
+      const res  = await fetch(`${BACKEND}/auth/google/token`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
