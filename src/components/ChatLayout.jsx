@@ -221,8 +221,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
       if (inConvo && !prev.find(m => m.id === msg.id)) return [...prev, msg];
       return prev;
     });
-    const onUpd = (d) => setMessages(prev => prev.map(m => m.id === d.id ? { ...m, ...d } : m));
-    const onSeen = (d) => {
+    const onUpd = (d) => setMessages(prev => prev.map(m => m.id === d.id ? { ...m, ...d } : m));    const onSeen = (d) => {
       setMessages(prev => prev.map(m => 
         (m.sender_id === currentUser.id && m.receiver_id === d.by_user_id)
           ? { ...m, status: 'seen' }
@@ -890,8 +889,10 @@ export default function ChatLayout({ currentUser, onLogout }) {
                               <span style={{ display: 'flex', alignItems: 'center', marginLeft: '2px' }}>
                                 {msg.status === 'seen' ? (
                                   <CheckCheck size={14} color="#3ecf70" />
+                                ) : msg.status === 'delivered' ? (
+                                  <CheckCheck size={14} color="rgba(255,255,255,0.5)" />
                                 ) : (
-                                  <Check size={14} color="var(--text-muted)" />
+                                  <Check size={14} color="rgba(255,255,255,0.35)" />
                                 )}
                               </span>
                             )}

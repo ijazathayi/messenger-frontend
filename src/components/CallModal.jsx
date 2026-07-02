@@ -280,6 +280,8 @@ export default function CallModal({
           </>
         ) : (
           <div style={{ textAlign: 'center' }}>
+            {/* Hidden audio element to play remote audio in voice calls */}
+            <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
             <div style={{
               width: '130px', height: '130px', borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--accent), var(--green))',
