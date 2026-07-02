@@ -260,52 +260,78 @@ export default function ChatLayout({ currentUser, onLogout }) {
 
   const isAdmin = currentUser.email === 'theijazlegacy@gmail.com';
 
-  /* ── Search logic ──
-     Admin: filter existing list by name or code
-     Regular: search by exact 4-digit code via API */
-  const [findResult,   setFindResult]   = useState(null);  // found user from API
-  const [findError,    setFindError]    = useState('');    // error msg
-  const [findLoading,  setFindLoading]  = useState(false);
+  /* ── Search state ── */
+  const [findResult,  setFindResult]  = useState(null);
+  const [findError,   setFindError]   = useState('');
+  const [findLoading, setFindLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
+  // Admin: filter live as they type
   useEffect(() => {
-    const q = search.trim();
-    if (!q) {
-      setFilteredUsers(users);
+    if (!isAdmin) return;
+    const q = search.trim().toLowerCase();
+    if (!q) { setFilteredUsers(users); return; }
+    setFilteredUsers(users.filter(u =>
+      u.name?.toLowerCase().includes(q) ||
+      String(u.user_code).includes(q)
+    ));
+  }, [search, users, isAdmin]);
+
+  // Clear search results when input is cleared
+  useEffect(() => {
+    if (search.trim() === '') {
       setFindResult(null);
       setFindError('');
+      setHasSearched(false);
+    }
+  }, [search]);
+
+  const handleSearch = () => {
+    if (isAdmin) return;
+    const q = search.trim();
+    if (!q) return;
+
+    if (!/^\d{4}$/.test(q)) {
+      setFindError('Please enter exactly 4 digits (e.g. 1234)');
+      setFindResult(null);
+      setHasSearched(true);
       return;
     }
 
-    if (isAdmin) {
-      // Admin: filter in place by name or code
-      const ql = q.toLowerCase();
-      setFilteredUsers(users.filter(u =>
-        u.name?.toLowerCase().includes(ql) ||
-        String(u.user_code).includes(q)
-      ));
-    } else {
-      // Regular user: only allow 4-digit code search
-      setFilteredUsers([]);
-      if (/^\d{4}$/.test(q)) {
-        setFindLoading(true);
-        setFindError('');
-        setFindResult(null);
-        authFetch(`${BACKEND}/api/users/find?code=${q}`, {})
-          .then(r => r.json())
-          .then(data => {
-            console.log('[FindUser] response:', data);
-            if (data.error) { setFindError(data.error); setFindResult(null); }
-            else setFindResult(data);
-          })
-          .catch((e) => { console.error('[FindUser] error:', e); setFindError('Network error'); })
-          .finally(() => setFindLoading(false));
-      } else {
-        setFindResult(null);
-        if (q.length === 4) setFindError('Enter a 4-digit number');
-        else setFindError('');
-      }
-    }
-  }, [search, users, isAdmin]);
+    console.log('[Search] Looking up user code:', q);
+    console.log('[Search] Token present:', !!localStorage.getItem('messenger_token'));
+    console.log('[Search] Backend URL:', BACKEND);
+
+    setFindLoading(true);
+    setFindError('');
+    setFindResult(null);
+    setHasSearched(true);
+
+    authFetch(`${BACKEND}/api/users/find?code=${q}`)
+      .then(r => {
+        console.log('[Search] HTTP status:', r.status);
+        return r.json();
+      })
+      .then(data => {
+        console.log('[Search] Response:', data);
+        if (data.error) {
+          setFindError(data.error);
+          setFindResult(null);
+        } else {
+          setFindResult(data);
+          setFindError('');
+        }
+      })
+      .catch(e => {
+        console.error('[Search] Network error:', e);
+        setFindError('Network error — check your connection');
+      })
+      .finally(() => setFindLoading(false));
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Enter') handleSearch();
+  };
 
   /* ── Fetch messages ── */
   useEffect(() => {
@@ -450,14 +476,30 @@ export default function ChatLayout({ currentUser, onLogout }) {
           <div className="search-input-wrapper">
             <Search size={14} color="var(--text-muted)" />
             <input
-              placeholder={isAdmin ? 'Search by name or ID…' : 'Find user by 4-digit ID…'}
+              placeholder={isAdmin ? 'Search by name or ID…' : 'Enter 4-digit ID + Enter…'}
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              maxLength={isAdmin ? 100 : 4}
+              inputMode="numeric"
             />
+            {!isAdmin && search.trim().length > 0 && (
+              <button
+                onClick={handleSearch}
+                disabled={findLoading}
+                style={{
+                  background: 'var(--accent)', border: 'none', color: '#fff',
+                  borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: '11px',
+                  cursor: 'pointer', flexShrink: 0, fontWeight: 600
+                }}
+              >
+                {findLoading ? '…' : 'Go'}
+              </button>
+            )}
           </div>
           {!isAdmin && (
             <div style={{ padding: '4px 14px 2px', fontSize: '11px', color: 'var(--text-muted)' }}>
-              Enter exact 4-digit ID to find someone new
+              Type 4-digit ID and press Enter or Go
             </div>
           )}
         </div>
@@ -496,24 +538,47 @@ export default function ChatLayout({ currentUser, onLogout }) {
           ) : (
             /* Regular user: existing conversations + search result */
             <>
-              {/* Search result from API */}
+              {/* Search results */}
               {search.trim() ? (
-                <>
+                <div style={{ padding: '12px 14px' }}>
                   {findLoading && (
-                    <div className="contacts-empty" style={{ padding: '20px' }}>Searching...</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }} />
+                      Searching…
+                    </div>
                   )}
-                  {findError && !findLoading && (
-                    <div className="contacts-empty" style={{ color: 'var(--red)', padding: '20px', fontSize: '12px' }}>
+                  {!findLoading && !hasSearched && (
+                    <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                      Press Enter or tap Go to search
+                    </div>
+                  )}
+                  {!findLoading && hasSearched && findError && (
+                    <div style={{
+                      background: 'rgba(229,83,83,0.08)', border: '1px solid rgba(229,83,83,0.2)',
+                      borderRadius: 'var(--r-md)', padding: '12px', fontSize: '13px', color: 'var(--red)'
+                    }}>
                       ⚠️ {findError}
                     </div>
                   )}
-                  {findResult && !findLoading && (
+                  {!findLoading && hasSearched && !findError && !findResult && (
+                    <div style={{
+                      background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                      borderRadius: 'var(--r-md)', padding: '12px', fontSize: '13px', color: 'var(--text-muted)',
+                      textAlign: 'center'
+                    }}>
+                      😕 No user found with ID #{search.trim()}
+                    </div>
+                  )}
+                  {!findLoading && findResult && (
                     <div
-                      className={`contact-item ${selectedUser?.id === findResult.id && !showSettings ? 'active' : ''}`}
+                      className={`contact-item ${selectedUser?.id === findResult.id ? 'active' : ''}`}
+                      style={{ borderRadius: 'var(--r-md)', border: '1px solid rgba(79,142,247,0.2)', background: 'var(--accent-soft)', marginBottom: '4px' }}
                       onClick={() => {
                         setSelectedUser(findResult);
                         setShowSettings(false);
-                        // Add to users list so it shows in sidebar after
+                        setSearch('');
+                        setFindResult(null);
+                        setHasSearched(false);
                         if (!users.find(u => u.id === findResult.id)) {
                           setUsers(prev => [...prev, findResult]);
                         }
@@ -528,16 +593,14 @@ export default function ChatLayout({ currentUser, onLogout }) {
                           <span className={`contact-status ${isOnline(findResult.id) ? 'online' : ''}`}>
                             {isOnline(findResult.id) ? 'Online' : 'Offline'}
                           </span>
-                          <span style={{
-                            fontSize: '10.5px', color: 'var(--accent)',
-                            background: 'rgba(99,102,241,0.1)', borderRadius: '4px',
-                            padding: '0px 5px', fontFamily: 'monospace'
-                          }}>#{findResult.user_code}</span>
+                          <span style={{ fontSize: '10.5px', color: 'var(--accent)', background: 'rgba(79,142,247,0.1)', borderRadius: '4px', padding: '0px 5px', fontFamily: 'monospace' }}>
+                            #{findResult.user_code}
+                          </span>
                         </div>
                       </div>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
                 /* No search: show existing conversations */
                 users.length === 0 ? (
