@@ -221,7 +221,8 @@ export default function ChatLayout({ currentUser, onLogout }) {
       if (inConvo && !prev.find(m => m.id === msg.id)) return [...prev, msg];
       return prev;
     });
-    const onUpd = (d) => setMessages(prev => prev.map(m => m.id === d.id ? { ...m, ...d } : m));    const onSeen = (d) => {
+    const onUpd = (d) => setMessages(prev => prev.map(m => m.id === d.id ? { ...m, ...d } : m));
+    const onSeen = (d) => {
       setMessages(prev => prev.map(m => 
         (m.sender_id === currentUser.id && m.receiver_id === d.by_user_id)
           ? { ...m, status: 'seen' }
