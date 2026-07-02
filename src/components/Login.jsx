@@ -26,6 +26,7 @@ const Login = ({ onLogin }) => {
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        console.log('[Login] Success, token received:', !!data.token);
         onLogin(data.user, data.token);
       } else {
         setError(data.error || 'Login failed. Please try again.');

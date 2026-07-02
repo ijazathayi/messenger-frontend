@@ -298,16 +298,26 @@ export default function ChatLayout({ currentUser, onLogout }) {
       return;
     }
 
+    const token = localStorage.getItem('messenger_token');
     console.log('[Search] Looking up user code:', q);
-    console.log('[Search] Token present:', !!localStorage.getItem('messenger_token'));
+    console.log('[Search] Token present:', !!token);
+    console.log('[Search] Token value:', token ? token.substring(0, 30) + '...' : 'NONE');
     console.log('[Search] Backend URL:', BACKEND);
+
+    if (!token) {
+      setFindError('Not logged in — please refresh and log in again');
+      setHasSearched(true);
+      return;
+    }
 
     setFindLoading(true);
     setFindError('');
     setFindResult(null);
     setHasSearched(true);
 
-    authFetch(`${BACKEND}/api/users/find?code=${q}`)
+    fetch(`${BACKEND}/api/users/find?code=${q}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
       .then(r => {
         console.log('[Search] HTTP status:', r.status);
         return r.json();
@@ -476,21 +486,29 @@ export default function ChatLayout({ currentUser, onLogout }) {
           <div className="search-input-wrapper">
             <Search size={14} color="var(--text-muted)" />
             <input
-              placeholder={isAdmin ? 'Search by name or ID…' : 'Enter 4-digit ID + Enter…'}
+              placeholder={isAdmin ? 'Search by name or ID…' : '4-digit ID…'}
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               maxLength={isAdmin ? 100 : 4}
-              inputMode="numeric"
+              inputMode={isAdmin ? 'text' : 'numeric'}
             />
-            {!isAdmin && search.trim().length > 0 && (
+            {!isAdmin && (
               <button
                 onClick={handleSearch}
                 disabled={findLoading}
                 style={{
-                  background: 'var(--accent)', border: 'none', color: '#fff',
-                  borderRadius: 'var(--r-sm)', padding: '3px 8px', fontSize: '11px',
-                  cursor: 'pointer', flexShrink: 0, fontWeight: 600
+                  background: search.trim().length === 4 ? 'var(--accent)' : 'var(--bg-hover)',
+                  border: 'none',
+                  color: search.trim().length === 4 ? '#fff' : 'var(--text-muted)',
+                  borderRadius: 'var(--r-sm)',
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  minWidth: '36px',
                 }}
               >
                 {findLoading ? '…' : 'Go'}

@@ -56,7 +56,9 @@ function App() {
   }, []);
 
   const handleLogin = (userData, token) => {
+    console.log('[App] Saving token to localStorage:', !!token);
     setToken(token);
+    console.log('[App] Token saved, verifying:', !!localStorage.getItem('messenger_token'));
     setCurrentUser(userData);
   };
 
