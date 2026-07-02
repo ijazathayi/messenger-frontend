@@ -736,17 +736,18 @@ body {
   .login-title { font-size: 24px; }
   .login-subtitle { font-size: 13px; }
 
-  /* App layout — fixed full screen container */
+  /* App layout — use dynamic viewport to handle keyboard on mobile */
   .app-layout {
     position: fixed;
-    inset: 0;
+    top: 0; left: 0; right: 0;
+    height: 100dvh;
     overflow: visible;
   }
 
   /* Sidebar: full screen panel */
   .sidebar {
     position: absolute;
-    inset: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     width: 100%;
     min-width: unset;
     z-index: 10;
@@ -764,11 +765,13 @@ body {
     visibility: hidden;
   }
 
-  /* Chat area: off-screen right by default */
+  /* Chat area: flex column so input stays at bottom above keyboard */
   .chat-area {
     position: absolute;
-    inset: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     width: 100%;
+    display: flex;
+    flex-direction: column;
     transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform;
@@ -782,57 +785,22 @@ body {
     visibility: visible;
   }
 
-  /* Messages scroll */
+  /* Messages fill available space and scroll */
   .messages-container {
+    flex: 1;
     padding: 10px;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    min-height: 0;
   }
 
-  /* Settings overlay must be above everything */
-  .settings-overlay {
-    position: fixed !important;
-    z-index: 9999 !important;
-    align-items: flex-end;
-    padding: 0;
-    visibility: visible !important;
-    pointer-events: all !important;
-  }
-
-  .settings-modal {
-    max-width: 100%;
-    width: 100%;
-    margin: 0;
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
-    max-height: 92vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Show back button on mobile */
-  .mobile-back-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    width: 38px;
-    height: 38px;
-    border-radius: var(--r-full);
-    cursor: pointer;
-    transition: var(--t);
+  /* Input area always at bottom, never hidden by keyboard */
+  .chat-input-area {
     flex-shrink: 0;
-    margin-right: 2px;
+    padding: 8px 10px;
+    position: relative;
+    z-index: 2;
   }
-  .mobile-back-btn:active { background: rgba(255,255,255,0.1); }
-
-  /* Chat header */
-  .chat-header { padding: 10px; gap: 4px; }
-  .chat-user-name { font-size: 14px; }
-
-  /* Input area */
-  .chat-input-area { padding: 8px 10px; }
   .input-container { padding: 6px 6px 6px 12px; }
 
   /* Messages */

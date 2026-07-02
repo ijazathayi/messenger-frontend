@@ -258,11 +258,14 @@ export default function CallModal({
       <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {callType === 'video' ? (
           <>
-            {remoteStream ? (
-              <video ref={remoteVideoRef} autoPlay playsInline
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ color: '#555', fontSize: '16px', textAlign: 'center' }}>
+            {/* Always render remote video — srcObject set by ontrack */}
+            <video ref={remoteVideoRef} autoPlay playsInline
+              style={{
+                width: '100%', height: '100%', objectFit: 'cover',
+                display: remoteStream ? 'block' : 'none'
+              }} />
+            {!remoteStream && (
+              <div style={{ color: '#555', fontSize: '16px', textAlign: 'center', position: 'absolute' }}>
                 <div style={{ fontSize: '60px', marginBottom: '12px' }}>📹</div>
                 Waiting for {peerName}...
               </div>
@@ -280,14 +283,14 @@ export default function CallModal({
           </>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            {/* Hidden audio element to play remote audio in voice calls */}
+            {/* Always-rendered audio element for remote voice */}
             <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
             <div style={{
               width: '130px', height: '130px', borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--accent), var(--green))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', margin: '0 auto 20px',
-              boxShadow: callStatus === 'Connected' ? '0 0 40px rgba(100,200,100,0.3)' : '0 0 0 0 rgba(100,200,100,0)',
+              boxShadow: callStatus === 'Connected' ? '0 0 40px rgba(100,200,100,0.3)' : 'none',
               animation: callStatus !== 'Connected' ? 'ringPulse 2s infinite' : 'none'
             }}>
               <Phone size={55} />
