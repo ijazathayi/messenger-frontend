@@ -10,12 +10,6 @@ const authFetch = (url, options = {}) => fetch(url, {
     ...(options.headers || {}),
     'Authorization': `Bearer ${getToken()}`,
   },
-}).then(res => {
-  if (res.status === 401) {
-    localStorage.removeItem('messenger_token');
-    window.location.reload();
-  }
-  return res;
 });
 
 export default function AdminPanel({ onClose, showToast }) {
