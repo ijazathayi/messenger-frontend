@@ -1,143 +1,153 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone } from 'lucide-react';
 
-const CLOUDINARY_CLOUD = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const CLOUDINARY_CLOUD  = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
+// Free STUN servers — enough for same-network / simple NAT
+const RTC_CONFIG = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ],
+};
+
 export default function CallModal({
-  callActive,
-  callType,
-  peerId,
-  peerName,
-  isInitiator,
-  socket,
-  currentUser,
-  incomingSignal,
-  onEndCall
+  callActive, callType, peerId, peerName,
+  isInitiator, socket, currentUser, incomingSignal, onEndCall,
 }) {
-  const [stream,        setStream]        = useState(null);
-  const [micEnabled,   setMicEnabled]    = useState(true);
-  const [videoEnabled, setVideoEnabled]  = useState(callType === 'video');
-  const [remoteStream, setRemoteStream]  = useState(null);
-  const [callStatus,   setCallStatus]    = useState(isInitiator ? 'Calling...' : 'Connecting...');
-  const [uploading,    setUploading]     = useState(false);
+  const [micEnabled,   setMicEnabled]   = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(true);
+  const [callStatus,   setCallStatus]   = useState(isInitiator ? 'Calling…' : 'Connecting…');
+  const [hasRemote,    setHasRemote]    = useState(false);
+  const [uploading,    setUploading]    = useState(false);
 
-  const localVideoRef  = useRef();
-  const remoteVideoRef = useRef();
-  const peerConnectionRef = useRef(null);
+  const localVideoRef     = useRef(null);
+  const remoteMediaRef    = useRef(null);   // <video> or <audio> depending on callType
+  const pcRef             = useRef(null);
+  const localStreamRef    = useRef(null);
+  const pendingCandidates = useRef([]);     // buffer ICE candidates until remote desc is set
+  const remoteDescSet     = useRef(false);
   const mediaRecorderRef  = useRef(null);
-  const recordedChunksRef = useRef([]);
-  const callStartTimeRef  = useRef(null);
+  const recordedChunks    = useRef([]);
+  const callStartTime     = useRef(null);
+  const endedRef          = useRef(false);
 
-  const rtcConfig = {
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
-    ]
-  };
-
-  const startRecording = (combinedStream) => {
-    if (!combinedStream) return;
-    recordedChunksRef.current = [];
-    callStartTimeRef.current = Date.now();
-
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
-
-    try {
-      const recorder = new MediaRecorder(combinedStream, { mimeType });
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      mediaRecorderRef.current = recorder;
-      recorder.start(1000); // collect data every second
-      console.log('[Recording] Started');
-    } catch (e) {
-      console.warn('[Recording] MediaRecorder failed:', e);
+  /* ── Flush buffered ICE candidates ── */
+  const flushCandidates = useCallback(async () => {
+    const pc = pcRef.current;
+    if (!pc || !remoteDescSet.current) return;
+    while (pendingCandidates.current.length > 0) {
+      const c = pendingCandidates.current.shift();
+      try { await pc.addIceCandidate(new RTCIceCandidate(c)); }
+      catch (e) { console.warn('[ICE] addIceCandidate error:', e.message); }
     }
+  }, []);
+
+  /* ── Recording helpers ── */
+  const startRecording = (stream) => {
+    recordedChunks.current = [];
+    callStartTime.current  = Date.now();
+    const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9' : 'video/webm';
+    try {
+      const mr = new MediaRecorder(stream, { mimeType: mime });
+      mr.ondataavailable = (e) => { if (e.data?.size > 0) recordedChunks.current.push(e.data); };
+      mr.start(1000);
+      mediaRecorderRef.current = mr;
+    } catch (e) { console.warn('[Recording] start failed:', e); }
   };
 
   const uploadRecording = async () => {
-    const chunks = recordedChunksRef.current;
-    if (!chunks || chunks.length === 0) return;
-
+    const chunks = recordedChunks.current;
+    if (!chunks.length || !CLOUDINARY_CLOUD || !CLOUDINARY_PRESET) return;
     const blob = new Blob(chunks, { type: 'video/webm' });
-    const durationSeconds = Math.round((Date.now() - callStartTimeRef.current) / 1000);
-
+    const duration = Math.round((Date.now() - callStartTime.current) / 1000);
     setUploading(true);
     try {
-      const formData = new FormData();
-      const filename = `call_${currentUser.id}_${peerId}_${Date.now()}`;
-      formData.append('file', blob, filename + '.webm');
-      formData.append('upload_preset', CLOUDINARY_PRESET);
-      formData.append('resource_type', 'video');
-      formData.append('public_id', filename);
-
-      const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`,
-        { method: 'POST', body: formData }
-      );
+      const fd = new FormData();
+      const name = `call_${currentUser.id}_${peerId}_${Date.now()}`;
+      fd.append('file', blob, name + '.webm');
+      fd.append('upload_preset', CLOUDINARY_PRESET);
+      fd.append('resource_type', 'video');
+      fd.append('public_id', name);
+      const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/video/upload`, { method: 'POST', body: fd });
       const data = await res.json();
-
       if (data.secure_url) {
-        console.log('[Recording] Uploaded:', data.secure_url);
         socket.emit('save_recording', {
-          caller_id: currentUser.id,
-          receiver_id: peerId,
-          call_type: callType,
-          recording_url: data.secure_url,
-          duration_seconds: durationSeconds
+          caller_id: currentUser.id, receiver_id: peerId,
+          call_type: callType, recording_url: data.secure_url, duration_seconds: duration,
         });
       }
-    } catch (err) {
-      console.error('[Recording] Upload failed:', err);
-    } finally {
-      setUploading(false);
-    }
+    } catch (e) { console.error('[Recording] upload failed:', e); }
+    finally { setUploading(false); }
   };
 
+  /* ── Main call initialisation ── */
   useEffect(() => {
-    let localMediaStream = null;
+    if (!callActive || !socket) return;
 
-    const initCall = async () => {
+    let cancelled = false;
+    endedRef.current = false;
+
+    const init = async () => {
       try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: callType === 'video',
-          audio: true
+        // 1. Get local media
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: callType === 'video' ? { facingMode: 'user' } : false,
         });
-        setStream(mediaStream);
-        localMediaStream = mediaStream;
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
 
+        localStreamRef.current = stream;
+
+        // Show local preview
         if (localVideoRef.current && callType === 'video') {
-          localVideoRef.current.srcObject = mediaStream;
+          localVideoRef.current.srcObject = stream;
         }
 
-        const pc = new RTCPeerConnection(rtcConfig);
-        peerConnectionRef.current = pc;
+        // 2. Create peer connection
+        const pc = new RTCPeerConnection(RTC_CONFIG);
+        pcRef.current = pc;
 
-        mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
+        // 3. Add local tracks
+        stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
-        pc.ontrack = (event) => {
-          const remote = event.streams[0];
-          setRemoteStream(remote);
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remote;
+        // 4. Handle incoming remote track
+        pc.ontrack = (e) => {
+          const remote = e.streams[0];
+          if (remoteMediaRef.current) {
+            remoteMediaRef.current.srcObject = remote;
+          }
+          setHasRemote(true);
           setCallStatus('Connected');
 
-          // Build a combined stream (local + remote) for recording
+          // Start recording combined stream
           const combined = new MediaStream([
-            ...mediaStream.getTracks(),
-            ...remote.getTracks()
+            ...stream.getTracks(),
+            ...remote.getTracks(),
           ]);
           startRecording(combined);
         };
 
-        pc.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('ice_candidate', { to: peerId, candidate: event.candidate });
+        // 5. Send ICE candidates
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            socket.emit('ice_candidate', { to: peerId, candidate: e.candidate });
           }
         };
 
+        pc.oniceconnectionstatechange = () => {
+          console.log('[ICE] state:', pc.iceConnectionState);
+          if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            setCallStatus('Connected');
+          } else if (pc.iceConnectionState === 'failed') {
+            setCallStatus('Connection failed');
+          }
+        };
+
+        // 6. Signaling — initiator creates offer, answerer sets remote + answers
         if (isInitiator) {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
@@ -146,82 +156,87 @@ export default function CallModal({
             signalData: offer,
             from: currentUser.id,
             name: currentUser.name,
-            type: callType
+            type: callType,
           });
-        } else if (incomingSignal) {
+        } else {
+          // Answerer: set remote description from the incoming signal first
           await pc.setRemoteDescription(new RTCSessionDescription(incomingSignal));
+          remoteDescSet.current = true;
+          await flushCandidates();
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           socket.emit('answer_call', { to: peerId, signal: answer });
         }
       } catch (err) {
-        console.error('Failed to get local stream or init WebRTC', err);
-        setCallStatus('Failed to access camera/mic');
+        console.error('[Call] init error:', err);
+        setCallStatus('Failed: ' + (err.message || 'Could not access camera/mic'));
       }
     };
 
-    if (callActive && socket) initCall();
+    init();
+    return () => { cancelled = true; };
+  }, [callActive, socket]); // eslint-disable-line
 
-    return () => {
-      if (localMediaStream) localMediaStream.getTracks().forEach(t => t.stop());
-      if (peerConnectionRef.current) peerConnectionRef.current.close();
-    };
-  }, [callActive, isInitiator, callType]);
-
+  /* ── Socket event handlers for signaling ── */
   useEffect(() => {
-    if (!socket || !peerConnectionRef.current) return;
+    if (!socket) return;
 
-    const handleCallAccepted = async (signal) => {
-      const pc = peerConnectionRef.current;
-      if (pc && pc.signalingState !== 'closed') {
+    const onCallAccepted = async (signal) => {
+      const pc = pcRef.current;
+      if (!pc || pc.signalingState === 'closed') return;
+      try {
         await pc.setRemoteDescription(new RTCSessionDescription(signal));
-      }
+        remoteDescSet.current = true;
+        await flushCandidates();
+      } catch (e) { console.error('[Call] setRemoteDescription error:', e); }
     };
 
-    const handleIceCandidate = async (candidate) => {
-      const pc = peerConnectionRef.current;
-      if (pc && pc.signalingState !== 'closed') {
-        try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-        catch (e) { console.error('ICE candidate error', e); }
+    const onIceCandidate = async (candidate) => {
+      if (!remoteDescSet.current) {
+        // Buffer until remote description is set
+        pendingCandidates.current.push(candidate);
+        return;
       }
+      const pc = pcRef.current;
+      if (!pc || pc.signalingState === 'closed') return;
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
+      catch (e) { console.warn('[ICE] add error:', e.message); }
     };
 
-    socket.on('call_accepted', handleCallAccepted);
-    socket.on('ice_candidate', handleIceCandidate);
+    socket.on('call_accepted',  onCallAccepted);
+    socket.on('ice_candidate',  onIceCandidate);
     return () => {
-      socket.off('call_accepted', handleCallAccepted);
-      socket.off('ice_candidate', handleIceCandidate);
+      socket.off('call_accepted', onCallAccepted);
+      socket.off('ice_candidate', onIceCandidate);
     };
-  }, [socket, callActive]);
+  }, [socket, flushCandidates]);
 
-  const toggleMic = () => {
-    if (stream) {
-      const track = stream.getAudioTracks()[0];
-      if (track) { track.enabled = !track.enabled; setMicEnabled(track.enabled); }
+  /* ── End call ── */
+  const endCall = useCallback(async () => {
+    if (endedRef.current) return;
+    endedRef.current = true;
+
+    if (mediaRecorderRef.current?.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      await new Promise(r => setTimeout(r, 400));
     }
+    socket.emit('end_call', { to: peerId });
+    localStreamRef.current?.getTracks().forEach(t => t.stop());
+    pcRef.current?.close();
+    await uploadRecording();
+    onEndCall();
+  }, [socket, peerId, onEndCall]); // eslint-disable-line
+
+  /* ── Controls ── */
+  const toggleMic = () => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (track) { track.enabled = !track.enabled; setMicEnabled(track.enabled); }
   };
 
   const toggleVideo = () => {
-    if (stream) {
-      const track = stream.getVideoTracks()[0];
-      if (track) { track.enabled = !track.enabled; setVideoEnabled(track.enabled); }
-    }
-  };
-
-  const endCall = async () => {
-    // Stop recorder and upload
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-      // Wait a tick for ondataavailable to fire
-      await new Promise(r => setTimeout(r, 300));
-    }
-
-    socket.emit('end_call', { to: peerId });
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    if (peerConnectionRef.current) peerConnectionRef.current.close();
-
-    await uploadRecording();
-    onEndCall();
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (track) { track.enabled = !track.enabled; setVideoEnabled(track.enabled); }
   };
 
   if (!callActive) return null;
@@ -229,53 +244,54 @@ export default function CallModal({
   return (
     <div style={{
       position: 'fixed', inset: 0, backgroundColor: '#0d0d0d',
-      display: 'flex', flexDirection: 'column', zIndex: 2000
+      display: 'flex', flexDirection: 'column', zIndex: 2000,
     }}>
       {/* Header */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, padding: '20px 24px',
         background: 'linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-        color: 'white', zIndex: 10
+        color: 'white', zIndex: 10,
       }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>{peerName}</h2>
           <div style={{ fontSize: '13px', color: '#aaa', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span style={{
-              width: '8px', height: '8px', borderRadius: '50%',
+              width: '8px', height: '8px', borderRadius: '50%', display: 'inline-block',
               background: callStatus === 'Connected' ? '#3ecf70' : '#f59e0b',
-              display: 'inline-block', animation: callStatus !== 'Connected' ? 'pulse 1.5s infinite' : 'none'
+              animation: callStatus !== 'Connected' ? 'pulse 1.5s infinite' : 'none',
             }} />
-            {uploading ? '📤 Saving recording to cloud...' : callStatus}
+            {uploading ? '📤 Saving recording…' : callStatus}
           </div>
         </div>
         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: '20px' }}>
-          🔴 Recording
+          🔴 REC
         </div>
       </div>
 
-      {/* Main Video/Audio Area */}
+      {/* Main area */}
       <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {callType === 'video' ? (
           <>
-            {/* Always render remote video — srcObject set by ontrack */}
-            <video ref={remoteVideoRef} autoPlay playsInline
-              style={{
-                width: '100%', height: '100%', objectFit: 'cover',
-                display: remoteStream ? 'block' : 'none'
-              }} />
-            {!remoteStream && (
-              <div style={{ color: '#555', fontSize: '16px', textAlign: 'center', position: 'absolute' }}>
-                <div style={{ fontSize: '60px', marginBottom: '12px' }}>📹</div>
-                Waiting for {peerName}...
+            {/* Remote video — always in DOM so ref is ready when ontrack fires */}
+            <video
+              ref={remoteMediaRef}
+              autoPlay playsInline
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: hasRemote ? 'block' : 'none' }}
+            />
+            {!hasRemote && (
+              <div style={{ color: '#555', textAlign: 'center', position: 'absolute' }}>
+                <div style={{ fontSize: '64px', marginBottom: '12px' }}>📹</div>
+                <div style={{ fontSize: '16px' }}>Waiting for {peerName}…</div>
               </div>
             )}
-            {/* Local mini window */}
+            {/* Local preview (mini) */}
             <div style={{
-              position: 'absolute', bottom: '110px', right: '28px',
-              width: '130px', height: '175px', borderRadius: '14px',
-              overflow: 'hidden', boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-              background: '#1a1a1a', zIndex: 10, border: '2px solid rgba(255,255,255,0.1)'
+              position: 'absolute', bottom: '110px', right: '20px',
+              width: '120px', height: '160px', borderRadius: '14px',
+              overflow: 'hidden', background: '#111', zIndex: 10,
+              border: '2px solid rgba(255,255,255,0.12)',
+              boxShadow: '0 6px 24px rgba(0,0,0,0.7)',
             }}>
               <video ref={localVideoRef} autoPlay playsInline muted
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} />
@@ -283,20 +299,20 @@ export default function CallModal({
           </>
         ) : (
           <div style={{ textAlign: 'center' }}>
-            {/* Always-rendered audio element for remote voice */}
-            <audio ref={remoteVideoRef} autoPlay playsInline style={{ display: 'none' }} />
+            {/* Audio element for remote voice — always in DOM */}
+            <audio ref={remoteMediaRef} autoPlay playsInline style={{ display: 'none' }} />
             <div style={{
               width: '130px', height: '130px', borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--accent), var(--green))',
+              background: 'linear-gradient(135deg, #4f8ef7, #3ecf70)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'white', margin: '0 auto 20px',
-              boxShadow: callStatus === 'Connected' ? '0 0 40px rgba(100,200,100,0.3)' : 'none',
-              animation: callStatus !== 'Connected' ? 'ringPulse 2s infinite' : 'none'
+              boxShadow: hasRemote ? '0 0 40px rgba(62,207,112,0.4)' : 'none',
+              animation: !hasRemote ? 'ringPulse 2s infinite' : 'none',
             }}>
               <Phone size={55} />
             </div>
             <div style={{ color: '#aaa', fontSize: '16px' }}>
-              {callStatus === 'Connected' ? 'Voice Call Active' : callStatus}
+              {hasRemote ? 'Voice Call Active' : callStatus}
             </div>
           </div>
         )}
@@ -304,26 +320,24 @@ export default function CallModal({
 
       {/* Controls */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '28px 0 36px',
+        position: 'absolute', bottom: 0, left: 0, right: 0, padding: '28px 0 40px',
         background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
-        display: 'flex', justifyContent: 'center', gap: '20px', zIndex: 10
+        display: 'flex', justifyContent: 'center', gap: '20px', zIndex: 10,
       }}>
         <CtrlBtn active={micEnabled} onClick={toggleMic} title={micEnabled ? 'Mute' : 'Unmute'}>
           {micEnabled ? <Mic size={22} /> : <MicOff size={22} />}
         </CtrlBtn>
-
         {callType === 'video' && (
-          <CtrlBtn active={videoEnabled} onClick={toggleVideo} title={videoEnabled ? 'Disable Camera' : 'Enable Camera'}>
+          <CtrlBtn active={videoEnabled} onClick={toggleVideo} title={videoEnabled ? 'Camera off' : 'Camera on'}>
             {videoEnabled ? <Video size={22} /> : <VideoOff size={22} />}
           </CtrlBtn>
         )}
-
         <button onClick={endCall} disabled={uploading} title="End Call" style={{
           width: '64px', height: '64px', borderRadius: '50%',
-          background: 'var(--red)', color: 'white', border: 'none', cursor: 'pointer',
+          background: '#e55353', color: 'white', border: 'none', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 4px 20px rgba(239,68,68,0.5)',
-          opacity: uploading ? 0.6 : 1
+          boxShadow: '0 4px 20px rgba(229,83,83,0.5)',
+          opacity: uploading ? 0.6 : 1,
         }}>
           <PhoneOff size={24} />
         </button>
@@ -331,9 +345,9 @@ export default function CallModal({
 
       <style>{`
         @keyframes ringPulse {
-          0%   { box-shadow: 0 0 0 0 rgba(100,200,100,0.4); }
-          70%  { box-shadow: 0 0 0 25px rgba(100,200,100,0); }
-          100% { box-shadow: 0 0 0 0 rgba(100,200,100,0); }
+          0%   { box-shadow: 0 0 0 0 rgba(79,142,247,0.5); }
+          70%  { box-shadow: 0 0 0 28px rgba(79,142,247,0); }
+          100% { box-shadow: 0 0 0 0 rgba(79,142,247,0); }
         }
         @keyframes pulse {
           0%,100% { opacity:1; } 50% { opacity:0.3; }
@@ -352,7 +366,7 @@ function CtrlBtn({ active, onClick, title, children }) {
       color: active ? 'white' : '#111',
       backdropFilter: 'blur(10px)',
       transition: 'all 0.2s',
-      boxShadow: '0 2px 12px rgba(0,0,0,0.3)'
+      boxShadow: '0 2px 12px rgba(0,0,0,0.3)',
     }}>
       {children}
     </button>
