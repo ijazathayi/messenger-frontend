@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    { "source": "/auth/:path*",    "destination": "https://RENDER_URL/auth/:path*"    },
+    { "source": "/api/:path*",     "destination": "https://RENDER_URL/api/:path*"     },
+    { "source": "/admin/:path*",   "destination": "https://RENDER_URL/admin/:path*"   },
+    { "source": "/uploads/:path*", "destination": "https://RENDER_URL/uploads/:path*" },
+    { "source": "/(.*)",           "destination": "/index.html"                        }
+  ]
+}
