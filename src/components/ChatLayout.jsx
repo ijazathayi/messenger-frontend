@@ -418,7 +418,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
     <div className="app-layout glass-panel">
 
       {/* ══ SIDEBAR ══ */}
-      <aside className={`sidebar${selectedUser && !showSettings ? ' hidden-mobile' : ''}`}>
+      <aside className={`sidebar${selectedUser ? ' hidden-mobile' : ''}`}>
 
         {/* Header */}
         <div className="sidebar-header">
@@ -541,9 +541,22 @@ export default function ChatLayout({ currentUser, onLogout }) {
                 /* No search: show existing conversations */
                 users.length === 0 ? (
                   <div className="contacts-empty" style={{ padding: '30px 16px', textAlign: 'center', lineHeight: 1.7 }}>
-                    <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔍</div>
-                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>No conversations yet</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Enter a 4-digit user ID above to find someone</div>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>💬</div>
+                    <div style={{ fontWeight: 600, marginBottom: '6px', color: 'var(--text-primary)' }}>No conversations yet</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+                      Ask your friend for their 4-digit ID,<br/>then type it in the search box above
+                    </div>
+                    <div style={{
+                      background: 'var(--accent-soft)',
+                      border: '1px solid rgba(79,142,247,0.2)',
+                      borderRadius: 'var(--r-md)',
+                      padding: '10px 14px',
+                      fontSize: '12px',
+                      color: 'var(--accent)',
+                    }}>
+                      💡 Your ID: <strong>#{currentUser.user_code}</strong><br/>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Share this with friends so they can find you</span>
+                    </div>
                   </div>
                 ) : (
                   users.map(user => (
@@ -577,7 +590,7 @@ export default function ChatLayout({ currentUser, onLogout }) {
       </aside>
 
       {/* ══ MAIN CHAT AREA ══ */}
-      <div className={`chat-area${selectedUser && !showSettings ? ' visible-mobile' : ''}`}>
+      <div className={`chat-area${selectedUser ? ' visible-mobile' : ''}`}>
 
         {/* Settings modal */}
         {showSettings && (
