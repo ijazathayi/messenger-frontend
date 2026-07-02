@@ -20,13 +20,13 @@ const Login = ({ onLogin }) => {
     setError('');
     try {
       const res  = await fetch(`${BACKEND}/auth/google/token`, {
-        method: 'POST', credentials: 'include',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        onLogin(data.user);
+        onLogin(data.user, data.token);
       } else {
         setError(data.error || 'Login failed. Please try again.');
       }
