@@ -293,10 +293,11 @@ export default function ChatLayout({ currentUser, onLogout }) {
         authFetch(`${BACKEND}/api/users/find?code=${q}`, {})
           .then(r => r.json())
           .then(data => {
+            console.log('[FindUser] response:', data);
             if (data.error) { setFindError(data.error); setFindResult(null); }
             else setFindResult(data);
           })
-          .catch(() => setFindError('Network error'))
+          .catch((e) => { console.error('[FindUser] error:', e); setFindError('Network error'); })
           .finally(() => setFindLoading(false));
       } else {
         setFindResult(null);
@@ -502,8 +503,8 @@ export default function ChatLayout({ currentUser, onLogout }) {
                     <div className="contacts-empty" style={{ padding: '20px' }}>Searching...</div>
                   )}
                   {findError && !findLoading && (
-                    <div className="contacts-empty" style={{ color: 'var(--red)', padding: '20px' }}>
-                      {findError}
+                    <div className="contacts-empty" style={{ color: 'var(--red)', padding: '20px', fontSize: '12px' }}>
+                      ⚠️ {findError}
                     </div>
                   )}
                   {findResult && !findLoading && (
