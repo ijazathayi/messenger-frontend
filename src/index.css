@@ -726,32 +726,24 @@ body {
 
 @media (max-width: 768px) {
 
-  /* Fix root overflow */
-  html, body, #root {
-    overflow: hidden;
-    height: 100%;
-    width: 100%;
-  }
-
-  /* Login card full width on small screens */
+  /* Login card */
   .login-card {
     max-width: 100%;
     margin: 16px;
     padding: 36px 24px 32px;
     border-radius: var(--r-lg);
   }
-
   .login-title { font-size: 24px; }
   .login-subtitle { font-size: 13px; }
 
-  /* App layout */
+  /* App layout — fixed full screen container */
   .app-layout {
     position: fixed;
     inset: 0;
-    overflow: hidden;
+    overflow: visible;
   }
 
-  /* Sidebar: full screen, default visible */
+  /* Sidebar: full screen panel */
   .sidebar {
     position: absolute;
     inset: 0;
@@ -761,15 +753,18 @@ body {
     transform: translateX(0);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Hide sidebar when chat is open */
   .sidebar.hidden-mobile {
     transform: translateX(-100%);
     pointer-events: none;
+    visibility: hidden;
   }
 
-  /* Chat area: starts off-screen to the right */
+  /* Chat area: off-screen right by default */
   .chat-area {
     position: absolute;
     inset: 0;
@@ -777,11 +772,41 @@ body {
     transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     will-change: transform;
+    visibility: hidden;
+    overflow: hidden;
   }
 
-  /* Slide chat into view when active */
+  /* Show chat when active */
   .chat-area.visible-mobile {
     transform: translateX(0);
+    visibility: visible;
+  }
+
+  /* Messages scroll */
+  .messages-container {
+    padding: 10px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Settings overlay must be above everything */
+  .settings-overlay {
+    position: fixed !important;
+    z-index: 9999 !important;
+    align-items: flex-end;
+    padding: 0;
+    visibility: visible !important;
+    pointer-events: all !important;
+  }
+
+  .settings-modal {
+    max-width: 100%;
+    width: 100%;
+    margin: 0;
+    border-radius: var(--r-xl) var(--r-xl) 0 0;
+    max-height: 92vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Show back button on mobile */
@@ -802,19 +827,18 @@ body {
   }
   .mobile-back-btn:active { background: rgba(255,255,255,0.1); }
 
-  /* Chat header adjustments */
-  .chat-header { padding: 10px 10px; gap: 6px; }
+  /* Chat header */
+  .chat-header { padding: 10px; gap: 4px; }
   .chat-user-name { font-size: 14px; }
-
-  /* Messages */
-  .messages-container { padding: 10px; }
-  .message { max-width: 80%; font-size: 13.5px; }
 
   /* Input area */
   .chat-input-area { padding: 8px 10px; }
   .input-container { padding: 6px 6px 6px 12px; }
 
-  /* Contact info panel: full screen overlay */
+  /* Messages */
+  .message { max-width: 80%; font-size: 13.5px; }
+
+  /* Contact info panel full screen */
   .contact-info-panel {
     position: fixed;
     inset: 0;
@@ -824,36 +848,17 @@ body {
     border-radius: 0;
     padding-top: 20px;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Settings modal full width */
-  .settings-overlay {
-    align-items: flex-end;
-    padding: 0;
-  }
+  /* Toast */
+  .toast { bottom: 12px; right: 12px; left: 12px; text-align: center; }
 
-  .settings-modal {
-    max-width: 100%;
-    width: 100%;
-    margin: 0;
-    border-radius: var(--r-xl) var(--r-xl) 0 0;
-    max-height: 92vh;
-    overflow-y: auto;
-  }
-
-  /* Toast position */
-  .toast {
-    bottom: 12px;
-    right: 12px;
-    left: 12px;
-    text-align: center;
-  }
-
-  /* Attachment sizes */
+  /* Attachments */
   .attachment-image { max-width: 200px; }
   .attachment-audio { width: 200px; }
 
-  /* Dropdown fix on mobile */
+  /* Dropdown */
   .msg-dropdown { min-width: 140px; }
 }
 
